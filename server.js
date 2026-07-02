@@ -23,6 +23,7 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // 文件上传配置
 const storage = multer.diskStorage({
@@ -78,6 +79,14 @@ function requireRole(...roles) {
     next();
   };
 }
+
+// ==================== 图片上传API ====================
+
+app.post('/api/upload/image', authenticate, requireRole('hr'), upload.single('image'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: '请选择图片文件' });
+  const url = `/uploads/${req.file.filename}`;
+  res.json({ url, filename: req.file.filename });
+});
 
 // ==================== 认证API（候选人 & 校园大使 — 手机验证码） ====================
 

@@ -1248,7 +1248,30 @@
     }
 
     function execRichCmd(editorId, cmd, value) { document.getElementById(editorId).focus(); document.execCommand(cmd, false, value || null); }
-    function insertImage(editorId) { const url = prompt('请输入图片URL:'); if (url) { document.getElementById(editorId).focus(); document.execCommand('insertImage', false, url); } }
+    function insertImage(editorId) {
+      // 创建隐藏文件输入框
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/jpeg,image/png,image/gif,image/webp';
+      input.onchange = async () => {
+        const file = input.files[0];
+        if (!file) return;
+        if (file.size > 10 * 1024 * 1024) { showToast('图片大小不能超过10MB', 'error'); return; }
+        
+        const formData = new FormData();
+        formData.append('image', file);
+        try {
+          showToast('正在上传图片...', 'info');
+          const data = await api('/api/upload/image', { method: 'POST', body: formData });
+          document.getElementById(editorId).focus();
+          document.execCommand('insertImage', false, data.url);
+          showToast('图片已插入', 'success');
+        } catch (e) {
+          showToast('图片上传失败: ' + e.message, 'error');
+        }
+      };
+      input.click();
+    }
     async function saveCompanyInfo(type) { try { await apiClient.put('/api/company/info/' + type, { content: document.getElementById(type === 'intro' ? 'intro-editor' : 'recruit-editor').innerHTML }); showToast('保存成功', 'success'); } catch (e) { showToast(e.message, 'error'); } }
 
     // ==================== 校园大使数据看板 ====================
