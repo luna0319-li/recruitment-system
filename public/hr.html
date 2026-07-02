@@ -722,9 +722,20 @@
               const isPDF = resumeExt === 'pdf';
               const isImage = ['jpg','jpeg','png','gif','webp'].includes(resumeExt);
               const canPreview = isPDF || isImage;
-              const displayName = a.candidate_name 
+              
+              // 检测简历文件名是否有乱码（UTF-8 被错误解析为 Latin-1 的特征）
+              function hasGarbledText(str) {
+                if (!str) return true;
+                // 检测典型的乱码特征字符
+                const garbledPattern = /[\u00c0-\u00df][\u0080-\u00bf]/;
+                return garbledPattern.test(str);
+              }
+              
+              const displayName = a.candidate_name && !hasGarbledText(a.candidate_name)
                 ? `${a.candidate_name}的简历.${resumeExt}` 
-                : (a.resume_name || '简历文件');
+                : (a.resume_name && !hasGarbledText(a.resume_name) 
+                    ? a.resume_name 
+                    : `简历.${resumeExt}`);
 
               let previewHTML = '';
               if (canPreview) {
@@ -838,9 +849,30 @@
       } catch (e) { showToast(e.message, 'error'); }
     }
 
-    function downloadResume(filename, candidateName) {
-      const url = '/api/hr/resumes/' + encodeURIComponent(filename) + '?name=' + encodeURIComponent(candidateName || '简历');
-      window.open(url, '_blank');
+    async function downloadResume(filename, candidateName) {
+      try {
+        const token = Storage.get('token');
+        const url = '/api/hr/resumes/' + encodeURIComponent(filename) + '?name=' + encodeURIComponent(candidateName || '简历');
+        const res = await fetch(url, {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || '下载失败：' + res.status);
+        }
+        const blob = await res.blob();
+        const ext = filename.split('.').pop();
+        const downloadName = (candidateName || '简历') + '.' + ext;
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = downloadName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+        showToast('下载成功：' + downloadName, 'success');
+      } catch (e) { showToast(e.message, 'error'); }
     }
 
     // ==================== Analytics Page ====================
@@ -1517,9 +1549,22 @@
       }
     }
 
-    function viewAmbResume(path, name) {
-      if (path) window.open(path, '_blank');
-      else showToast('简历文件不存在', 'error');
+    async function viewAmbResume(path, name) {
+      if (!path) { showToast('简历文件不存在', 'error'); return; }
+      try {
+        const token = Storage.get('token');
+        const filename = path.split('/').pop();
+        const url = '/api/hr/resumes/' + encodeURIComponent(filename);
+        const res = await fetch(url, {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!res.ok) throw new Error('加载失败：' + res.status);
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        window.open(blobUrl, '_blank');
+        // 3 分钟后清理 Blob URL
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 180000);
+      } catch (e) { showToast(e.message, 'error'); }
     }
 
     init();
