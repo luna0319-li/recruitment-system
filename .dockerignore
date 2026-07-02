@@ -1,0 +1,17 @@
+node_modules
+npm-debug.log
+.env
+.env.local
+.env.production
+recruitment.db
+recruitment.db-shm
+recruitment.db-wal
+uploads/*
+!uploads/.gitkeep
+.DS_Store
+*.log
+.vscode
+.idea
+coverage
+dist
+build
