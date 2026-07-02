@@ -257,9 +257,15 @@ app.put('/api/auth/profile', authenticate, (req, res) => {
 
 // ==================== 候选人API ====================
 
-// 上传/更新简历（内推码可选，支持重新投递）
+// 上传/更新简历（内推码可选，支持重新投递；同时可补充姓名/学校/专业）
 app.post('/api/candidate/resume', authenticate, requireRole('candidate'), upload.single('resume'), (req, res) => {
   const referralCode = (req.body.referralCode || '').trim();
+  const { name, school, major } = req.body;
+
+  // 更新用户基础信息（姓名/学校/专业）
+  if (name || school || major) {
+    db.updateUserProfile(req.user.id, { name, school, major });
+  }
   
   // 内推码可选：如果填写了则验证，不填则跳过
   let referralCodeId = null;

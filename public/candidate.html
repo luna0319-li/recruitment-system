@@ -167,9 +167,15 @@
       const bannerTitle = editMode ? '修改你的简历' : '欢迎投递对点咨询';
       const bannerDesc = editMode ? '上传新简历将替换旧简历，也可补充或修改内推码' : '如果你有校园大使分享的内推码，请填写；没有内推码也可以直接投递';
 
-      // 编辑模式下获取已有的 referral_code
+      // 编辑模式下获取已有的 referral_code 和基础信息
       let existingCode = '';
+      let existingName = '';
+      let existingSchool = '';
+      let existingMajor = '';
       if (editMode && currentUser) {
+        existingName = currentUser.name || '';
+        existingSchool = currentUser.school || '';
+        existingMajor = currentUser.major || '';
         // 从进度里获取已有内推码
         apiClient.get('/api/candidate/progress').then(p => {
           if (p && p.application && p.application.referral_code) {
@@ -200,6 +206,22 @@
                 <label class="form-label">内推码 <span style="color:var(--text-muted);font-weight:400;font-size:12px;">（选填）</span></label>
                 <input type="text" id="referral-code" class="form-input" placeholder="如有内推码请填写（MP开头8位）" maxlength="8" style="text-transform:uppercase;letter-spacing:2px;font-weight:600;text-align:center;font-size:18px;" value="${existingCode}">
                 <div class="form-hint">内推码可提高简历曝光率，不填也可以正常投递</div>
+              </div>
+            </div>
+
+            <div class="card mb-4">
+              <h4 style="font-size:15px;font-weight:600;margin-bottom:12px;color:var(--text);">基本信息</h4>
+              <div class="form-group">
+                <label class="form-label">姓名 <span style="color:var(--danger);">*</span></label>
+                <input type="text" id="candidate-name" class="form-input" placeholder="请输入真实姓名" value="${existingName}" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">学校 <span style="color:var(--danger);">*</span></label>
+                <input type="text" id="candidate-school" class="form-input" placeholder="请输入学校全称" value="${existingSchool}" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">专业 <span style="color:var(--danger);">*</span></label>
+                <input type="text" id="candidate-major" class="form-input" placeholder="请输入专业名称" value="${existingMajor}" required>
               </div>
             </div>
 
@@ -272,6 +294,13 @@
 
     async function handleSubmitResume() {
       const referralCode = document.getElementById('referral-code').value.trim();
+      const name = document.getElementById('candidate-name').value.trim();
+      const school = document.getElementById('candidate-school').value.trim();
+      const major = document.getElementById('candidate-major').value.trim();
+
+      if (!name) { showToast('请输入姓名', 'error'); return; }
+      if (!school) { showToast('请输入学校', 'error'); return; }
+      if (!major) { showToast('请输入专业', 'error'); return; }
       if (!selectedFile) {
         showToast('请上传简历文件', 'error');
         return;
@@ -284,6 +313,9 @@
       try {
         const formData = new FormData();
         formData.append('resume', selectedFile);
+        formData.append('name', name);
+        formData.append('school', school);
+        formData.append('major', major);
         if (referralCode) {
           formData.append('referralCode', referralCode);
         }

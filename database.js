@@ -201,6 +201,20 @@ function findUserById(id) {
   return d.prepare('SELECT * FROM users WHERE id = ?').get(id);
 }
 
+function updateUserProfile(userId, { name, school, major }) {
+  const d = getDb();
+  d.prepare(
+    'UPDATE users SET name = ?, school = ?, major = ?, updated_at = ? WHERE id = ?'
+  ).run(
+    name || null,
+    school || null,
+    major || null,
+    Math.floor(Date.now() / 1000),
+    userId
+  );
+  return findUserById(userId);
+}
+
 // ==================== 内推码 ====================
 function generateReferralCode() {
   const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -918,7 +932,7 @@ function formatTime(ts) {
 module.exports = {
   getDb, hashPassword,
   createVerificationCode, verifyCode,
-  findUserByPhone, findUserByEmail, createUser, findUserById,
+  findUserByPhone, findUserByEmail, createUser, findUserById, updateUserProfile,
   createReferralCode, getAllReferralCodesByAmbassador, getReferralCodeByCode, getReferralCodeStats,
   createResume, getResumeByCandidate, updateResume, updateApplicationReferralCode,
   updateAmbassadorResume, getAmbassadorResume,
