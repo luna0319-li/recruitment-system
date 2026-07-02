@@ -431,10 +431,21 @@ app.put('/api/hr/applications/:id/status', authenticate, requireRole('hr'), (req
   res.json({ application: updated, operationLogs: logs });
 });
 
-// 下载简历
+// 下载/预览简历
 app.get('/api/hr/resumes/:filename', authenticate, requireRole('hr'), (req, res) => {
   const filePath = path.join(__dirname, 'uploads', req.params.filename);
-  res.download(filePath);
+  const baseFilename = path.basename(req.params.filename);
+  const ext = path.extname(baseFilename);
+
+  // 如果传了 name 参数，用候选人姓名作为下载文件名
+  let downloadName;
+  if (req.query.name) {
+    downloadName = req.query.name + ext;
+  } else {
+    downloadName = baseFilename;
+  }
+
+  res.download(filePath, downloadName);
 });
 
 // 标记入职提醒已处理
