@@ -43,13 +43,16 @@ async function api(path, options = {}) {
     if (res.status === 401) {
       Storage.remove('token');
       Storage.remove('user');
-      window.location.href = '/';
+      // 重载当前页面，各自页面的 init() 会显示对应的登录表单
+      window.location.reload();
+      throw new Error('登录已过期，请重新登录');
     }
     if (res.status === 403) {
-      // 角色不匹配：清除缓存，引导用户重新选择角色登录
+      // 角色不匹配：清除缓存，引导用户重新登录
       Storage.remove('token');
       Storage.remove('user');
-      window.location.href = '/';
+      window.location.reload();
+      throw new Error('权限不足，请使用正确的账号登录');
     }
     throw new Error(data.error || '请求失败');
   }
