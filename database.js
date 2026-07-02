@@ -3,7 +3,8 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
 
-const DB_PATH = path.join(__dirname, 'recruitment.db');
+// 数据库路径：优先使用环境变量 DB_PATH，否则使用本地路径
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'recruitment.db');
 
 let db;
 

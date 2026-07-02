@@ -1,6 +1,7 @@
 [build]
 builder = "nixpacks"
 buildCommand = "npm install"
+aptPkgs = ["python3", "python3-pip", "build-essential", "libsqlite3-dev"]
 
 [deploy]
 startCommand = "node server.js"
