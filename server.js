@@ -92,7 +92,7 @@ app.post('/api/auth/send-code', smsLimiter, (req, res) => {
   console.log(`\n📱 [验证码] 手机号: ${phone}, 验证码: ${code}\n`);
   res.json({
     message: '验证码已发送',
-    code: process.env.NODE_ENV === 'development' ? code : undefined
+    code: code
   });
 });
 
