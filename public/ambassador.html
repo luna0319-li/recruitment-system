@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>对点咨询 · 校园大使</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .dashboard-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+    .dash-stat { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 12px; text-align: center; transition: all 0.3s; }
+    .dash-stat:hover { border-color: var(--primary); box-shadow: var(--shadow); }
+    .dash-stat .stat-num { font-size: 28px; font-weight: 800; line-height: 1; }
+    .dash-stat .stat-num.c1 { color: #2563EB; }
+    .dash-stat .stat-num.c2 { color: #10B981; }
+    .dash-stat .stat-num.c3 { color: #F59E0B; }
+    .dash-stat .stat-lbl { font-size: 11px; color: var(--text-muted); margin-top: 6px; line-height: 1.3; }
+    .stat-icon { font-size: 20px; margin-bottom: 4px; }
+
+    .code-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 10px; transition: all 0.3s; }
+    .code-card:hover { border-color: var(--primary); box-shadow: var(--shadow); }
+    .code-card .cc-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .code-card .cc-code { font-size: 20px; font-weight: 800; letter-spacing: 3px; color: var(--primary); font-family: "SF Mono","Menlo","Consolas",monospace; }
+    .code-card .cc-scene { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+    .code-card .cc-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding-top: 10px; border-top: 1px solid var(--border); }
+    .code-card .cc-stat { text-align: center; }
+    .code-card .cc-stat-num { font-size: 18px; font-weight: 700; }
+    .code-card .cc-stat-lbl { font-size: 10px; color: var(--text-muted); }
+    .copy-btn-sm { padding: 4px 10px; font-size: 11px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-input); color: var(--text-secondary); cursor: pointer; transition: all 0.2s; font-family: inherit; }
+    .copy-btn-sm:hover { background: var(--primary-bg); color: var(--primary); border-color: var(--primary); }
+    .no-code-prompt { text-align: center; padding: 40px 20px; }
+    .modal-sheet { background: var(--bg-card); border-radius: var(--radius-xl) var(--radius-xl) 0 0; width: 100%; max-width: 500px; max-height: 88vh; overflow-y: auto; padding: 24px 20px 40px; }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; display: flex; align-items: flex-end; justify-content: center; }
+    .modal-handle { width: 36px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 20px; }
+
+    /* 大使简历上传 */
+    .resume-status-card { background: var(--bg-card); border: 1.5px solid var(--primary); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; display: flex; align-items: center; gap: 14px; }
+    .resume-status-card.uploaded { border-color: #10B981; }
+    .resume-status-icon { font-size: 32px; }
+    .resume-status-info { flex: 1; }
+    .resume-status-title { font-weight: 700; font-size: 15px; }
+    .resume-status-desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .amb-upload-area { border: 2px dashed var(--border); border-radius: var(--radius); padding: 24px; text-align: center; cursor: pointer; transition: all 0.2s; margin-top: 12px; }
+    .amb-upload-area:hover, .amb-upload-area.dragover { border-color: var(--primary); background: var(--primary-bg); }
+    .amb-upload-icon { font-size: 36px; margin-bottom: 8px; }
+    .amb-upload-text { font-size: 14px; font-weight: 600; color: var(--text); }
+    .amb-upload-hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+    .resume-file-preview { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--bg-input); border-radius: var(--radius-sm); margin-top: 10px; font-size: 13px; }
+    .resume-file-preview .file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script src="/js/common.js"></script>
+  <script>
+    const app = document.getElementById('app');
+    let currentUser = null;
+    let currentTab = 'dashboard';
+
+    async function init() {
+      const token = Storage.get('token');
+      if (!token) { renderLoginPage(); return; }
+      try {
+        const data = await apiClient.get('/api/auth/me');
+        if (data.role !== 'ambassador') { Storage.remove('token'); Storage.remove('user'); renderLoginPage(); return; }
+        currentUser = data;
+        Storage.set('user', data);
+        await loadDashboard();
+      } catch (e) { Storage.remove('token'); Storage.remove('user'); renderLoginPage(); }
+    }
+
+    function renderLoginPage() {
+      app.innerHTML = `
+        <div class="login-page">
+          <button class="theme-btn" onclick="toggleTheme()" style="position:fixed;top:16px;right:16px;width:40px;height:40px;border-radius:50%;border:1.5px solid var(--border);background:var(--bg-card);color:var(--text);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;z-index:10;">🌙</button>
+          <div class="login-header">
+            <a href="/" style="display:inline-block;margin-bottom:20px;font-size:14px;color:var(--text-muted);">← 返回选择角色</a>
+            <h2>校园大使</h2>
+            <p>生成专属内推码，参与校招推广</p>
+          </div>
+          <div class="login-form">
+            <div class="form-group">
+              <label class="form-label">手机号</label>
+              <div class="phone-input-wrap">
+                <span class="phone-prefix">+86</span>
+                <input type="tel" id="login-phone" placeholder="请输入手机号" maxlength="11" oninput="this.value=this.value.replace(/\\D/g,'')">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">验证码</label>
+              <div class="input-group">
+                <input type="text" id="login-code" class="form-input" placeholder="6位验证码" maxlength="6">
+                <button class="btn btn-outline btn-sm" id="send-code-btn" onclick="handleSendCode()">获取验证码</button>
+              </div>
+            </div>
+            <button class="btn btn-primary btn-lg btn-block mt-4" onclick="handleLogin()">登录 / 注册</button>
+          </div>
+        </div>
+      `;
+      updateThemeIconBtn();
+    }
+
+    async function handleSendCode() {
+      const phone = document.getElementById('login-phone').value;
+      await sendVerificationCode(phone, document.getElementById('send-code-btn'));
+    }
+
+    async function handleLogin() {
+      const phone = document.getElementById('login-phone').value;
+      const code = document.getElementById('login-code').value;
+      if (!phone || !code) { showToast('请输入手机号和验证码', 'error'); return; }
+      try {
+        const data = await apiClient.post('/api/auth/login', { phone, code, role: 'ambassador' });
+        Storage.set('token', data.token);
+        Storage.set('user', data.user);
+        currentUser = data.user;
+        showToast('登录成功', 'success');
+        await loadDashboard();
+      } catch (e) { showToast(e.message, 'error'); }
+    }
+
+    async function loadDashboard() {
+      app.innerHTML = '<div class="loading-page"><div class="spinner"></div><span style="color:var(--text-muted);">加载中...</span></div>';
+
+      const dashboard = await apiClient.get('/api/ambassador/dashboard').catch(() => ({ referralCount: 0, interviewCount: 0, offerCount: 0, codes: [] }));
+      const codes = dashboard.codes || [];
+      const hasResume = currentUser.ambassadorResumeFilename;
+
+      app.innerHTML = `
+        <div class="page">
+          <header class="app-header">
+            <span class="logo">对点咨询 · 校园大使</span>
+            <div class="header-actions">
+              <button class="theme-btn" onclick="toggleTheme()" style="width:36px;height:36px;border-radius:50%;border:1.5px solid var(--border);background:var(--bg-card);color:var(--text);cursor:pointer;font-size:16px;">🌙</button>
+              <button class="btn btn-outline btn-sm" onclick="logout()">退出</button>
+            </div>
+          </header>
+
+          <div class="mt-4">
+            <!-- 简历状态卡片 -->
+            <div class="resume-status-card ${hasResume ? 'uploaded' : ''}" onclick="${hasResume ? '' : 'triggerAmbResumeUpload()'}">
+              <div class="resume-status-icon">${hasResume ? '✅' : '📋'}</div>
+              <div class="resume-status-info">
+                <div class="resume-status-title">${hasResume ? '个人简历已上传' : '请先上传个人简历'}</div>
+                <div class="resume-status-desc">${hasResume ? currentUser.ambassadorResumeOriginal : '上传您的个人简历后，才能生成内推码'}</div>
+              </div>
+              ${hasResume ? `
+                <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); triggerAmbResumeUpload()">更换</button>
+              ` : `
+                <button class="btn btn-primary btn-sm">上传简历</button>
+              `}
+            </div>
+
+            <!-- 隐藏的文件上传input -->
+            <input type="file" id="amb-resume-input" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" onchange="handleAmbResumeUpload(this)" style="display:none;">
+
+            <!-- 导航标签 -->
+            <div class="tabs">
+              <button class="tab ${currentTab === 'dashboard' ? 'active' : ''}" onclick="switchAmbTab('dashboard')">📊 数据看板</button>
+              <button class="tab ${currentTab === 'codes' ? 'active' : ''}" onclick="switchAmbTab('codes')">🎫 我的内推码</button>
+              <button class="tab ${currentTab === 'info' ? 'active' : ''}" onclick="switchAmbTab('info')">📢 校招信息</button>
+            </div>
+
+            <!-- 数据看板 -->
+            <div id="tab-dashboard" class="tab-content" style="display:${currentTab === 'dashboard' ? 'block' : 'none'};">
+              ${codes.length > 0 ? `
+                <div class="dashboard-stats mt-3">
+                  <div class="dash-stat">
+                    <div class="stat-icon">📨</div>
+                    <div class="stat-num c1">${dashboard.referralCount || 0}</div>
+                    <div class="stat-lbl">简历推荐量</div>
+                  </div>
+                  <div class="dash-stat">
+                    <div class="stat-icon">🤝</div>
+                    <div class="stat-num c2">${dashboard.interviewCount || 0}</div>
+                    <div class="stat-lbl">推荐到面量</div>
+                  </div>
+                  <div class="dash-stat">
+                    <div class="stat-icon">🎉</div>
+                    <div class="stat-num c3">${dashboard.offerCount || 0}</div>
+                    <div class="stat-lbl">推荐Offer量</div>
+                  </div>
+                </div>
+                <div class="card mb-4" style="background:var(--bg-input);border:none;">
+                  <div style="font-size:13px;color:var(--text-secondary);line-height:1.8;">
+                    <div style="font-weight:600;color:var(--text);margin-bottom:8px;">📖 数据说明</div>
+                    <p><b>简历推荐量</b>：使用你的所有内推码投递的候选人总数</p>
+                    <p><b>推荐到面量</b>：进入初面且未放弃面试的候选人数量</p>
+                    <p><b>推荐Offer量</b>：已入职且满2周仍在职的候选人数量</p>
+                  </div>
+                </div>
+              ` : `
+                <div class="no-code-prompt">
+                  <div style="font-size:64px;">🎯</div>
+                  <h2 style="font-size:20px;margin:16px 0 8px;">还没有内推码</h2>
+                  <p style="color:var(--text-muted);font-size:14px;margin-bottom:20px;">去「我的内推码」页面生成你的第一个内推码</p>
+                  <button class="btn btn-primary" onclick="switchAmbTab('codes');showGenerateModal()">立即生成</button>
+                </div>
+              `}
+            </div>
+
+            <!-- 我的内推码 -->
+            <div id="tab-codes" class="tab-content" style="display:${currentTab === 'codes' ? 'block' : 'none'};">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;margin-bottom:12px;">
+                <div style="font-weight:600;font-size:15px;">共 ${codes.length} 个内推码</div>
+                ${currentUser.ambassadorResumeFilename ? `
+                  <button class="btn btn-primary btn-sm" onclick="showGenerateModal()">+ 生成新内推码</button>
+                ` : `
+                  <button class="btn btn-primary btn-sm" disabled style="opacity:0.5;cursor:not-allowed;" onclick="showToast('请先上传个人简历','error')">+ 生成新内推码</button>
+                `}
+              </div>
+              ${!currentUser.ambassadorResumeFilename ? `
+                <div class="card mb-4" style="border-left:3px solid var(--warning);background:var(--bg-input);">
+                  <div style="font-size:13px;color:var(--text-secondary);">⚠️ 请先在「数据看板」页面上传您的个人简历，才能生成内推码</div>
+                </div>
+              ` : ''}
+              ${codes.length === 0 ? `
+                <div class="no-code-prompt" style="padding:50px 20px;">
+                  <div style="font-size:48px;margin-bottom:12px;">🏷️</div>
+                  <p style="color:var(--text-muted);margin-bottom:16px;">点击上方按钮生成你的第一个内推码</p>
+                </div>
+              ` : codes.map(c => `
+                <div class="code-card">
+                  <div class="cc-header">
+                    <div>
+                      <div class="cc-code">${c.code}</div>
+                      <div class="cc-scene">${escapeHtml(c.scene || '未设置场景')}</div>
+                    </div>
+                    <button class="copy-btn-sm" onclick="copyCode('${c.code}')">📋 复制</button>
+                  </div>
+                  <div class="cc-stats">
+                    <div class="cc-stat">
+                      <div class="cc-stat-num" style="color:#2563EB;">${c.stats.referralCount}</div>
+                      <div class="cc-stat-lbl">推荐量</div>
+                    </div>
+                    <div class="cc-stat">
+                      <div class="cc-stat-num" style="color:#10B981;">${c.stats.interviewCount}</div>
+                      <div class="cc-stat-lbl">到面量</div>
+                    </div>
+                    <div class="cc-stat">
+                      <div class="cc-stat-num" style="color:#F59E0B;">${c.stats.offerCount}</div>
+                      <div class="cc-stat-lbl">Offer量</div>
+                    </div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+
+            <!-- 校招信息 -->
+            <div id="tab-info" class="tab-content" style="display:${currentTab === 'info' ? 'block' : 'none'};">
+              <div class="card mt-3" id="intro-content"><div class="loading-page"><div class="spinner"></div></div></div>
+              <div class="card mt-3" id="recruitment-content"><div class="loading-page"><div class="spinner"></div></div></div>
+            </div>
+          </div>
+        </div>
+      `;
+      updateThemeIconBtn();
+
+      if (currentTab === 'info') {
+        loadAmbassadorInfo('intro');
+        loadAmbassadorInfo('recruitment');
+      }
+    }
+
+    function switchAmbTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+      event.target.classList.add('active');
+      document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+      const panel = document.getElementById('tab-' + tab);
+      if (panel) panel.style.display = 'block';
+      if (tab === 'info') { loadAmbassadorInfo('intro'); loadAmbassadorInfo('recruitment'); }
+    }
+
+    function showGenerateModal() {
+      if (!currentUser.ambassadorResumeFilename) {
+        showToast('请先上传个人简历，才能生成内推码', 'error');
+        return;
+      }
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.innerHTML = `
+        <div class="modal-sheet" onclick="event.stopPropagation()">
+          <div class="modal-handle"></div>
+          <div class="modal-header">
+            <h3>生成新内推码</h3>
+            <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button>
+          </div>
+          <div class="form-group">
+            <label class="form-label">使用场景</label>
+            <textarea id="new-scene-input" class="form-input" placeholder="请描述此内推码的使用场景，例如：在XX大学校园宣讲会上分享给应届毕业生" rows="3" style="resize:vertical;"></textarea>
+            <div class="form-hint">不同渠道可以生成不同内推码，方便追踪效果</div>
+          </div>
+          <button class="btn btn-primary btn-block btn-lg" onclick="handleGenerateNew()" id="new-gen-btn">确认生成</button>
+        </div>
+      `;
+      modal.addEventListener('click', () => modal.remove());
+      document.body.appendChild(modal);
+    }
+
+    async function handleGenerateNew() {
+      const scene = document.getElementById('new-scene-input').value.trim();
+      if (!scene) { showToast('请填写内推码使用场景', 'error'); return; }
+      const btn = document.getElementById('new-gen-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> 生成中...';
+      try {
+        await apiClient.post('/api/ambassador/referral-code', { scene });
+        showToast('内推码生成成功！', 'success');
+        document.querySelector('.modal-overlay')?.remove();
+        await loadDashboard();
+      } catch (e) {
+        showToast(e.message, 'error');
+        btn.disabled = false;
+        btn.textContent = '确认生成';
+      }
+    }
+
+    function copyCode(code) {
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(code).then(() => showToast('内推码已复制', 'success'));
+      } else {
+        const input = document.createElement('input');
+        input.value = code;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+        showToast('内推码已复制', 'success');
+      }
+    }
+
+    function triggerAmbResumeUpload() {
+      document.getElementById('amb-resume-input').click();
+    }
+
+    async function handleAmbResumeUpload(input) {
+      const file = input.files[0];
+      if (!file) return;
+      const allowed = ['application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','image/jpeg','image/png'];
+      if (!allowed.includes(file.type) && !file.name.match(/\.(pdf|doc|docx|jpg|jpeg|png)$/i)) {
+        showToast('仅支持 PDF、Word、JPG、PNG 格式', 'error');
+        input.value = '';
+        return;
+      }
+      const btn = event.target.closest('.resume-status-card')?.querySelector('button');
+      if (btn) { btn.disabled = true; btn.textContent = '上传中...'; }
+
+      try {
+        const formData = new FormData();
+        formData.append('resume', file);
+        await apiClient.post('/api/ambassador/resume', formData);
+        showToast('个人简历上传成功！', 'success');
+        // 刷新用户信息
+        const userData = await apiClient.get('/api/auth/me');
+        currentUser = { ...currentUser, ...userData };
+        Storage.set('user', currentUser);
+        await loadDashboard();
+      } catch (e) {
+        showToast(e.message, 'error');
+        if (btn) { btn.disabled = false; btn.textContent = currentUser.ambassadorResumeFilename ? '更换' : '上传简历'; }
+      }
+      input.value = '';
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    async function loadAmbassadorInfo(type) {
+      try {
+        const data = await apiClient.get(`/api/company/info/${type}`);
+        const el = document.getElementById(`${type}-content`);
+        if (el) el.innerHTML = data.content || `<div class="empty-state"><div class="empty-text">暂无${type==='intro'?'公司介绍':'校招'}信息</div></div>`;
+      } catch (e) {}
+    }
+
+    function updateThemeIconBtn() {
+      const theme = document.documentElement.getAttribute('data-theme') || 'light';
+      const btns = document.querySelectorAll('.theme-btn');
+      btns.forEach(b => b.textContent = theme === 'dark' ? '☀️' : '🌙');
+    }
+
+    init();
+  </script>
+</body>
+</html>

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>对点咨询 · 校招平台</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .role-page { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; text-align: center; }
+    .brand-section { margin-bottom: 48px; }
+    .brand-logo { width: 72px; height: 72px; background: linear-gradient(135deg, #2563EB, #6366F1); border-radius: 20px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; font-size: 32px; color: #fff; box-shadow: 0 12px 32px rgba(37, 99, 235, 0.35); }
+    .brand-logo svg { width: 36px; height: 36px; }
+    .brand-name { font-size: 24px; font-weight: 800; color: var(--text); letter-spacing: -0.5px; }
+    .brand-desc { font-size: 14px; color: var(--text-muted); margin-top: 6px; }
+    .role-cards { display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 360px; }
+    .role-card { display: flex; align-items: center; gap: 16px; padding: 20px; background: var(--bg-card); border: 2px solid var(--border); border-radius: var(--radius-lg); cursor: pointer; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); text-align: left; position: relative; overflow: hidden; }
+    .role-card::before { content: ''; position: absolute; inset: 0; border-radius: var(--radius-lg); opacity: 0; transition: opacity 0.3s; }
+    .role-card:hover, .role-card:active { border-color: var(--primary); box-shadow: 0 8px 24px rgba(37, 99, 235, 0.15); transform: translateY(-2px); }
+    .role-card:active { transform: scale(0.98); }
+    .role-icon-wrap { width: 52px; height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0; }
+    .role-icon-wrap.candidate { background: linear-gradient(135deg, #DBEAFE, #BFDBFE); color: #2563EB; }
+    .role-icon-wrap.ambassador { background: linear-gradient(135deg, #D1FAE5, #A7F3D0); color: #10B981; }
+    .role-text h3 { font-size: 17px; font-weight: 600; color: var(--text); }
+    .role-text span { font-size: 13px; color: var(--text-muted); display: block; margin-top: 2px; }
+    .role-arrow { margin-left: auto; font-size: 18px; color: var(--text-muted); transition: transform 0.3s; }
+    .role-card:hover .role-arrow, .role-card:active .role-arrow { transform: translateX(4px); color: var(--primary); }
+    .footer-note { margin-top: 48px; font-size: 12px; color: var(--text-muted); }
+    .theme-btn { position: fixed; top: 16px; right: 16px; width: 40px; height: 40px; border-radius: 50%; border: 1.5px solid var(--border); background: var(--bg-card); color: var(--text); cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; z-index: 10; transition: all var(--transition); backdrop-filter: blur(10px); }
+    .theme-btn:hover { border-color: var(--primary); }
+  </style>
+</head>
+<body>
+  <button class="theme-btn theme-toggle" onclick="toggleTheme()">🌙</button>
+
+  <div class="role-page">
+    <div class="brand-section">
+      <div class="brand-logo">
+        <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="2" y="6" width="32" height="24" rx="3" fill="white" opacity="0.2"/>
+          <path d="M8 14h20M8 18h20M8 22h14" stroke="white" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="brand-name">对点咨询</div>
+      <div class="brand-desc">校园招聘 · 人才管理平台</div>
+    </div>
+
+    <div class="role-cards">
+      <div class="role-card" onclick="selectRole('candidate', '/candidate.html')">
+        <div class="role-icon-wrap candidate">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <div class="role-text">
+          <h3>校招投递</h3>
+          <span>输入内推码，上传简历，追踪投递进度</span>
+        </div>
+        <span class="role-arrow">→</span>
+      </div>
+
+      <div class="role-card" onclick="selectRole('ambassador', '/ambassador.html')">
+        <div class="role-icon-wrap ambassador">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14l-5-4.87 6.91-1.01z"/></svg>
+        </div>
+        <div class="role-text">
+          <h3>校园大使</h3>
+          <span>生成专属内推码，查看推荐数据看板</span>
+        </div>
+        <span class="role-arrow">→</span>
+      </div>
+    </div>
+
+    <div class="footer-note">
+      HR端请访问专属链接
+    </div>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script>
+    function selectRole(role, url) {
+      Storage.set('selectedRole', role);
+      window.location.href = url;
+    }
+
+    // 如果已登录，根据角色跳转
+    const user = getUser();
+    if (user) {
+      if (user.role === 'candidate') window.location.href = '/candidate.html';
+      else if (user.role === 'ambassador') window.location.href = '/ambassador.html';
+    }
+  </script>
+</body>
+</html>

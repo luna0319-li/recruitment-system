@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>对点咨询 · 校招投递</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .welcome-banner { background: linear-gradient(135deg, #2563EB, #6366F1); color: #fff; border-radius: var(--radius-xl); padding: 24px; margin-bottom: 20px; box-shadow: 0 8px 24px rgba(37, 99, 235, 0.3); }
+    .welcome-banner h2 { font-size: 20px; margin-bottom: 4px; }
+    .welcome-banner p { font-size: 13px; opacity: 0.85; }
+    .progress-section { margin-bottom: 20px; }
+    .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .progress-percent { font-size: 14px; font-weight: 700; color: var(--primary); }
+    .timeline { position: relative; padding-left: 32px; margin-top: 16px; }
+    .timeline::before { content: ''; position: absolute; left: 15px; top: 12px; bottom: 12px; width: 2px; background: var(--border); }
+    .tl-item { position: relative; padding-bottom: 28px; }
+    .tl-item:last-child { padding-bottom: 0; }
+    .tl-dot { position: absolute; left: -21px; top: 4px; width: 14px; height: 14px; border-radius: 50%; background: var(--border); border: 2px solid var(--bg-card); z-index: 1; transition: all 0.3s; }
+    .tl-item.done .tl-dot { background: var(--success); }
+    .tl-item.current .tl-dot { background: var(--primary); box-shadow: 0 0 0 4px var(--primary-bg); }
+    .tl-item.rejected .tl-dot { background: var(--danger); }
+    .tl-label { font-size: 14px; font-weight: 500; color: var(--text); }
+    .tl-time { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .tl-item.done .tl-label { color: var(--success); }
+    .tl-item.rejected .tl-label { color: var(--danger); }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .info-card { margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script src="/js/common.js"></script>
+  <script>
+    const app = document.getElementById('app');
+    let currentUser = null;
+
+    // ==================== 初始化 ====================
+    async function init() {
+      const token = Storage.get('token');
+      if (!token) {
+        renderLoginPage();
+        return;
+      }
+
+      try {
+        const data = await apiClient.get('/api/auth/me');
+        if (data.role !== 'candidate') {
+          Storage.remove('token');
+          Storage.remove('user');
+          renderLoginPage();
+          return;
+        }
+        currentUser = data;
+        Storage.set('user', data);
+        await loadMainApp();
+      } catch (e) {
+        Storage.remove('token');
+        Storage.remove('user');
+        renderLoginPage();
+      }
+    }
+
+    // ==================== 登录页 ====================
+    function renderLoginPage() {
+      app.innerHTML = `
+        <div class="login-page">
+          <button class="theme-btn theme-toggle" onclick="toggleTheme()" style="position:fixed;top:16px;right:16px;width:40px;height:40px;border-radius:50%;border:1.5px solid var(--border);background:var(--bg-card);color:var(--text);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;z-index:10;">🌙</button>
+          <div class="login-header">
+            <a href="/" style="display:inline-block;margin-bottom:20px;font-size:14px;color:var(--text-muted);">← 返回选择角色</a>
+            <h2>校招投递</h2>
+            <p>使用手机验证码登录，开启你的校招之旅</p>
+          </div>
+          <div class="login-form">
+            <div class="form-group">
+              <label class="form-label">手机号</label>
+              <div class="phone-input-wrap">
+                <span class="phone-prefix">+86</span>
+                <input type="tel" id="login-phone" placeholder="请输入手机号" maxlength="11" oninput="this.value=this.value.replace(/\\D/g,'')">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">验证码</label>
+              <div class="input-group">
+                <input type="text" id="login-code" class="form-input" placeholder="6位验证码" maxlength="6" style="flex:1;">
+                <button class="btn btn-outline btn-sm" id="send-code-btn" onclick="handleSendCode()">获取验证码</button>
+              </div>
+              <div class="form-hint">开发环境验证码会自动弹出</div>
+            </div>
+            <button class="btn btn-primary btn-lg btn-block mt-4" onclick="handleLogin()">登录 / 注册</button>
+          </div>
+          <div class="login-footer">
+            <span style="font-size:12px;color:var(--text-muted);">登录即代表同意对点咨询的服务条款和隐私政策</span>
+          </div>
+        </div>
+      `;
+      updateThemeIconBtn();
+
+      document.getElementById('login-phone').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') document.getElementById('login-code').focus();
+      });
+      document.getElementById('login-code').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') handleLogin();
+      });
+    }
+
+    async function handleSendCode() {
+      const phone = document.getElementById('login-phone').value;
+      const btn = document.getElementById('send-code-btn');
+      await sendVerificationCode(phone, btn);
+    }
+
+    async function handleLogin() {
+      const phone = document.getElementById('login-phone').value;
+      const code = document.getElementById('login-code').value;
+
+      if (!phone || !code) {
+        showToast('请输入手机号和验证码', 'error');
+        return;
+      }
+
+      try {
+        const data = await apiClient.post('/api/auth/login', { phone, code, role: 'candidate' });
+        Storage.set('token', data.token);
+        Storage.set('user', data.user);
+        currentUser = data.user;
+        showToast('登录成功', 'success');
+        await loadMainApp();
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    // ==================== 主应用 ====================
+    async function loadMainApp() {
+      app.innerHTML = '<div class="loading-page"><div class="spinner"></div><span style="color:var(--text-muted);">加载中...</span></div>';
+
+      try {
+        const progress = await apiClient.get('/api/candidate/progress');
+        const hasResume = progress && progress.application;
+
+        if (!hasResume) {
+          renderResumeUpload();
+        } else {
+          renderDashboard(progress);
+        }
+      } catch (e) {
+        // 未投递简历
+        renderResumeUpload();
+      }
+    }
+
+    // ==================== 简历上传页（支持首次上传+编辑重传） ====================
+    let selectedFile = null;
+    let isEditMode = false;
+
+    function renderResumeUpload(editMode = false) {
+      isEditMode = editMode;
+      const title = editMode ? '修改简历' : '投递简历';
+      const btnText = editMode ? '更新简历' : '提交投递';
+      const bannerTitle = editMode ? '修改你的简历' : '欢迎投递对点咨询';
+      const bannerDesc = editMode ? '上传新简历将替换旧简历，也可补充或修改内推码' : '如果你有校园大使分享的内推码，请填写；没有内推码也可以直接投递';
+
+      // 编辑模式下获取已有的 referral_code
+      let existingCode = '';
+      if (editMode && currentUser) {
+        // 从进度里获取已有内推码
+        apiClient.get('/api/candidate/progress').then(p => {
+          if (p && p.application && p.application.referral_code) {
+            document.getElementById('referral-code').value = p.application.referral_code;
+          }
+        }).catch(() => {});
+      }
+
+      app.innerHTML = `
+        <div class="page">
+          <header class="app-header">
+            <span class="logo">对点咨询</span>
+            <div class="header-actions">
+              <button class="theme-btn theme-toggle" onclick="toggleTheme()">🌙</button>
+              <button class="btn btn-outline btn-sm" onclick="logout()">退出</button>
+            </div>
+          </header>
+
+          <div class="mt-6">
+            ${editMode ? `<button class="btn btn-outline btn-sm mb-3" onclick="loadMainApp()">← 返回投递进度</button>` : ''}
+            <div class="welcome-banner">
+              <h2>${bannerTitle}</h2>
+              <p>${bannerDesc}</p>
+            </div>
+
+            <div class="card mb-4">
+              <div class="form-group">
+                <label class="form-label">内推码 <span style="color:var(--text-muted);font-weight:400;font-size:12px;">（选填）</span></label>
+                <input type="text" id="referral-code" class="form-input" placeholder="如有内推码请填写（MP开头8位）" maxlength="8" style="text-transform:uppercase;letter-spacing:2px;font-weight:600;text-align:center;font-size:18px;" value="${existingCode}">
+                <div class="form-hint">内推码可提高简历曝光率，不填也可以正常投递</div>
+              </div>
+            </div>
+
+            <div class="card mb-4">
+              <label class="form-label">上传简历 ${editMode ? '<span style="color:var(--text-muted);font-weight:400;font-size:12px;">（新上传将替换旧简历）</span>' : ''}</label>
+              <div class="upload-area" id="upload-area" onclick="document.getElementById('file-input').click()">
+                <div class="upload-icon">📄</div>
+                <div class="upload-text">点击上传简历文件</div>
+                <div class="upload-hint">支持 PDF、Word、JPG、PNG 格式，不超过20MB</div>
+              </div>
+              <input type="file" id="file-input" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" onchange="handleFileSelect(this)" style="display:none;">
+              <div id="file-preview"></div>
+              <div id="upload-error" class="form-error" style="display:none;"></div>
+            </div>
+
+            <button class="btn btn-primary btn-lg btn-block" id="submit-btn" onclick="handleSubmitResume()">${btnText}</button>
+          </div>
+        </div>
+      `;
+      updateThemeIconBtn();
+
+      // 拖拽上传
+      const uploadArea = document.getElementById('upload-area');
+      uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+      uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+      uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        const file = e.dataTransfer.files[0];
+        if (file) handleFile(file);
+      });
+
+      document.getElementById('referral-code').addEventListener('input', function() {
+        this.value = this.value.toUpperCase();
+      });
+    }
+
+    function handleFileSelect(input) {
+      if (input.files[0]) handleFile(input.files[0]);
+    }
+
+    function handleFile(file) {
+      const allowed = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'];
+      const ext = file.name.split('.').pop().toLowerCase();
+      if (!allowed.includes(ext)) {
+        document.getElementById('upload-error').textContent = '不支持的文件格式，请上传 PDF、Word、JPG 或 PNG 格式';
+        document.getElementById('upload-error').style.display = 'block';
+        return;
+      }
+      if (file.size > 20 * 1024 * 1024) {
+        document.getElementById('upload-error').textContent = '文件大小不能超过20MB';
+        document.getElementById('upload-error').style.display = 'block';
+        return;
+      }
+      document.getElementById('upload-error').style.display = 'none';
+      selectedFile = file;
+
+      const preview = document.getElementById('file-preview');
+      preview.innerHTML = `
+        <div class="upload-preview">
+          <span class="file-icon">📎</span>
+          <div class="file-info">
+            <div class="file-name">${file.name}</div>
+            <div class="file-size">${formatFileSize(file.size)}</div>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="selectedFile=null;document.getElementById('file-preview').innerHTML='';document.getElementById('file-input').value='';">移除</button>
+        </div>
+      `;
+    }
+
+    async function handleSubmitResume() {
+      const referralCode = document.getElementById('referral-code').value.trim();
+      if (!selectedFile) {
+        showToast('请上传简历文件', 'error');
+        return;
+      }
+
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> 提交中...';
+
+      try {
+        const formData = new FormData();
+        formData.append('resume', selectedFile);
+        if (referralCode) {
+          formData.append('referralCode', referralCode);
+        }
+        const result = await apiClient.post('/api/candidate/resume', formData);
+        showToast(result.message || '简历投递成功！', 'success');
+        setTimeout(() => loadMainApp(), 500);
+      } catch (e) {
+        showToast(e.message, 'error');
+        btn.disabled = false;
+        btn.textContent = '提交投递';
+      }
+    }
+
+    // ==================== 候选人 Dashboard ====================
+    function renderDashboard(progress) {
+      const app_data = progress.application;
+      const timeline = progress.timeline;
+      const statusText = progress.statusText;
+      const percent = progress.progress;
+
+      let statusBadgeClass = 'pending';
+      if (['passed','first_interview','second_interview'].includes(app_data.status)) statusBadgeClass = 'process';
+      if (['offer'].includes(app_data.status)) statusBadgeClass = 'success';
+      if (['rejected','interview_rejected','second_rejected','interview_waived','second_waived','offer_rejected'].includes(app_data.status)) statusBadgeClass = 'danger';
+      if (['onboarded'].includes(app_data.status)) statusBadgeClass = 'success';
+
+      app.innerHTML = `
+        <div class="page">
+          <header class="app-header">
+            <span class="logo">对点咨询</span>
+            <div class="header-actions">
+              <button class="btn btn-outline btn-sm" onclick="renderResumeUpload(true)">📝 修改简历</button>
+              <button class="theme-btn theme-toggle" onclick="toggleTheme()">🌙</button>
+              <button class="btn btn-outline btn-sm" onclick="logout()">退出</button>
+            </div>
+          </header>
+
+          <div class="mt-4">
+            <!-- 投递进度卡片 -->
+            <div class="card mb-4" style="border-left: 3px solid var(--primary);">
+              <div class="progress-header">
+                <div class="section-title" style="margin-bottom:0;">
+                  <span>📋</span> 投递进度
+                </div>
+                <span class="status-badge ${statusBadgeClass}" id="status-badge">${statusText}</span>
+              </div>
+              ${['rejected','interview_rejected','second_rejected'].includes(app_data.status) ? '' : `
+                <div class="progress-bar-wrap">
+                  <div class="progress-bar-fill" id="progress-bar" style="width:0%;"></div>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);">
+                  <span>投递</span><span>入职</span>
+                </div>
+              `}
+              <div class="timeline mt-3">
+                ${timeline.map(item => {
+                  let cls = '';
+                  if (item.rejected) cls = 'rejected';
+                  else if (item.done && item === timeline[timeline.length-1]) cls = 'current';
+                  else if (item.done) cls = 'done';
+                  return `
+                    <div class="tl-item ${cls}">
+                      <div class="tl-dot"></div>
+                      <div class="tl-label">${item.label}</div>
+                      ${item.time ? `<div class="tl-time">${item.time}</div>` : ''}
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+              ${app_data.referral_code ? `<div style="margin-top:12px;font-size:12px;color:var(--text-muted);">内推码: <span style="font-weight:600;color:var(--primary);">${app_data.referral_code}</span></div>` : ''}
+            </div>
+
+            <!-- AI评分卡片 -->
+            ${progress.aiScore ? `
+            <div class="card mb-4" style="background:linear-gradient(135deg,rgba(37,99,235,0.03),rgba(99,102,241,0.03));border:1px solid rgba(37,99,235,0.12);">
+              <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;">
+                <div style="text-align:center;">
+                  <div style="font-size:42px;font-weight:800;line-height:1;color:${progress.aiScore >= 80 ? '#10B981' : progress.aiScore >= 60 ? '#F59E0B' : '#EF4444'};">${progress.aiScore}</div>
+                  <div style="font-size:11px;color:var(--text-muted);">AI简历评分</div>
+                </div>
+                <div style="flex:1;">
+                  <div style="font-size:14px;font-weight:600;">简历AI分析</div>
+                  <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;white-space:pre-wrap;line-height:1.7;max-height:200px;overflow-y:auto;">${progress.aiAnalysis || '暂无分析'}</div>
+                </div>
+              </div>
+            </div>
+            ` : ''}
+
+            <!-- 标签切换 -->
+            <div class="tabs">
+              <button class="tab active" onclick="switchCandidateTab('intro')">公司介绍</button>
+              <button class="tab" onclick="switchCandidateTab('recruitment')">校招信息</button>
+            </div>
+
+            <!-- 公司介绍 -->
+            <div class="tab-content active" id="tab-intro">
+              <div class="card" id="intro-content">
+                <div class="loading-page"><div class="spinner"></div></div>
+              </div>
+            </div>
+
+            <!-- 校招信息 -->
+            <div class="tab-content" id="tab-recruitment">
+              <div class="card" id="recruitment-content">
+                <div class="loading-page"><div class="spinner"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      updateThemeIconBtn();
+
+      // 动画填充进度条
+      setTimeout(() => {
+        const bar = document.getElementById('progress-bar');
+        if (bar) bar.style.width = percent + '%';
+      }, 100);
+
+      // 加载公司信息
+      loadCompanyInfo('intro');
+      loadCompanyInfo('recruitment');
+    }
+
+    async function loadCompanyInfo(type) {
+      try {
+        const data = await apiClient.get(`/api/company/info/${type}`);
+        const el = document.getElementById(`${type}-content`);
+        if (el) {
+          el.innerHTML = data.content || `<div class="empty-state"><div class="empty-text">暂无${type === 'intro' ? '公司介绍' : '校招'}信息</div></div>`;
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    function switchCandidateTab(tab) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+      document.getElementById('tab-' + tab).classList.add('active');
+      event.target.classList.add('active');
+    }
+
+    function updateThemeIconBtn() {
+      const theme = document.documentElement.getAttribute('data-theme') || 'light';
+      const btn = document.querySelector('.theme-toggle');
+      if (btn) btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+    }
+
+    // 启动
+    init();
+  </script>
+</body>
+</html>
