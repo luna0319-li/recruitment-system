@@ -724,26 +724,59 @@
               const canPreview = isPDF || isImage;
               
               // 检测简历文件名是否有乱码（UTF-8 被错误解析为 Latin-1 的特征）
+              // 正常的 UTF-8 中文字符串中，不应出现 Latin-1 扩展字符 (0xC0-0xFF)
+              // 这些字符是 UTF-8 编码字节被误解析为 Latin-1 的结果
               function hasGarbledText(str) {
                 if (!str) return true;
-                // 检测典型的乱码特征字符
-                const garbledPattern = /[\u00c0-\u00df][\u0080-\u00bf]/;
-                return garbledPattern.test(str);
+                // 检测是否包含 Latin-1 扩展字符 (0xC0-0xFF)
+                // 中文字符 (\u4e00-\u9fff) 和 ASCII 不会落在这个范围
+                const latin1Extended = /[\u00c0-\u00ff]/;
+                return latin1Extended.test(str);
               }
               
+              // 尝试将 Latin-1 乱码还原为 UTF-8
+              function tryDecodeUTF8(str) {
+                if (!str) return str;
+                // 如果不包含 Latin-1 扩展字符，不需要解码
+                if (!/[\u00c0-\u00ff]/.test(str)) return str;
+                try {
+                  const bytes = new Uint8Array(str.length);
+                  for (let i = 0; i < str.length; i++) {
+                    bytes[i] = str.charCodeAt(i) & 0xff;
+                  }
+                  const decoded = new TextDecoder('utf-8').decode(bytes);
+                  // 如果解码后仍然包含乱码特征，说明解码失败
+                  if (/[\u00c0-\u00ff]/.test(decoded)) return str;
+                  return decoded;
+                } catch (e) {
+                  return str;
+                }
+              }
+              
+              const decodedResumeName = tryDecodeUTF8(a.resume_name);
+              const isResumeNameGarbled = hasGarbledText(a.resume_name);
+              
+              // 确定显示名：优先用候选人姓名，其次用解码后的简历名，最后回退到"简历"
               const displayName = a.candidate_name && !hasGarbledText(a.candidate_name)
                 ? `${a.candidate_name}的简历.${resumeExt}` 
-                : (a.resume_name && !hasGarbledText(a.resume_name) 
-                    ? a.resume_name 
+                : (!isResumeNameGarbled && decodedResumeName 
+                    ? decodedResumeName 
                     : `简历.${resumeExt}`);
+              
+              // 确定下载时使用的候选人名称
+              const downloadCandidateName = a.candidate_name && !hasGarbledText(a.candidate_name)
+                ? a.candidate_name
+                : (!isResumeNameGarbled && decodedResumeName
+                    ? decodedResumeName.replace(/\.[^.]+$/, '')  // 去掉扩展名
+                    : '简历');
 
               let previewHTML = '';
               if (canPreview) {
                 previewHTML = `
                   <div class="resume-preview" style="margin-top:12px;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#fff;">
                     <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg-input);border-bottom:1px solid var(--border);">
-                      <span style="font-size:13px;font-weight:600;">📄 简历预览 — ${a.candidate_name || a.resume_name}</span>
-                      <button class="btn btn-outline btn-sm" onclick="downloadResume('${resumeFile}','${(a.candidate_name || '简历').replace(/'/g, "\\'")}')">下载</button>
+                      <span style="font-size:13px;font-weight:600;">📄 简历预览 — ${displayName}</span>
+                      <button class="btn btn-outline btn-sm" onclick="downloadResume('${resumeFile}','${downloadCandidateName.replace(/'/g, "\\'")}')">下载</button>
                     </div>
                     ${isPDF ? 
                       `<iframe src="/uploads/${resumeFile}" style="width:100%;height:600px;border:none;" title="简历预览"></iframe>` :
@@ -760,7 +793,7 @@
                   <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg-input);border-radius:var(--radius);margin-bottom:8px;">
                     <span>📄</span>
                     <span style="flex:1;font-size:13px;">${displayName}</span>
-                    ${!canPreview ? `<button class="btn btn-outline btn-sm" onclick="downloadResume('${resumeFile}','${(a.candidate_name || '简历').replace(/'/g, "\\'")}')">下载</button>` : ''}
+                    ${!canPreview ? `<button class="btn btn-outline btn-sm" onclick="downloadResume('${resumeFile}','${downloadCandidateName.replace(/'/g, "\\'")}')">下载</button>` : ''}
                   </div>
                   ${previewHTML}
                   ${a.ai_score ? `
