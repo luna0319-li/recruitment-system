@@ -758,10 +758,10 @@
               
               // 确定显示名：优先用候选人姓名，其次用解码后的简历名，最后回退到"简历"
               const displayName = a.candidate_name && !hasGarbledText(a.candidate_name)
-                ? `${a.candidate_name}的简历.${resumeExt}` 
+                ? a.candidate_name
                 : (!isResumeNameGarbled && decodedResumeName 
-                    ? decodedResumeName 
-                    : `简历.${resumeExt}`);
+                    ? decodedResumeName.replace(/\.[^.]+$/, '')  // 去掉扩展名
+                    : '简历');
               
               // 确定下载时使用的候选人名称
               const downloadCandidateName = a.candidate_name && !hasGarbledText(a.candidate_name)
@@ -885,7 +885,8 @@
     async function downloadResume(filename, candidateName) {
       try {
         const token = Storage.get('token');
-        const url = '/api/hr/resumes/' + encodeURIComponent(filename) + '?name=' + encodeURIComponent(candidateName || '简历');
+        const downloadLabel = '简历预览 — ' + (candidateName || '简历');
+        const url = '/api/hr/resumes/' + encodeURIComponent(filename) + '?name=' + encodeURIComponent(downloadLabel);
         const res = await fetch(url, {
           headers: { 'Authorization': 'Bearer ' + token }
         });
@@ -895,7 +896,7 @@
         }
         const blob = await res.blob();
         const ext = filename.split('.').pop();
-        const downloadName = (candidateName || '简历') + '.' + ext;
+        const downloadName = downloadLabel + '.' + ext;
         const blobUrl = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = blobUrl;
